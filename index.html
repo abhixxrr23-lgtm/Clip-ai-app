@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#10111b">
+<link rel="manifest" href="manifest.json">
+<title>ClipAI</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#10111b;color:white;
+ font-family:Arial,sans-serif;padding:20px;
+}
+header{font-size:28px;font-weight:bold;margin:10px 0 4px}
+header span{color:#9b80ff}
+.sub{color:#aaa;margin-bottom:20px;font-size:14px}
+.card{
+ background:#1c1d2b;padding:18px;
+ border-radius:18px;margin:16px 0;
+ border:1px solid #2b2d42;
+}
+button,.upload-btn{
+ background:#8064ff;color:white;border:0;
+ padding:14px;border-radius:12px;
+ width:100%;font-size:16px;font-weight:bold;
+ margin-top:12px;cursor:pointer;display:block;text-align:center;
+}
+button:disabled{background:#453b75;color:#aaa;cursor:not-allowed;}
+.ai-btn{background:linear-gradient(135deg,#8064ff,#ec4899);}
+.download-btn{background:#22c55e;margin-top:8px;padding:10px;font-size:14px;}
+input[type="file"]{display:none}
+input[type="text"],select{
+ width:100%;padding:12px;border-radius:10px;
+ background:#10111b;color:white;border:1px solid #353752;
+ font-size:14px;margin-top:6px;
+}
+label{font-size:14px;color:#ccc;display:block;margin-top:12px}
+video{width:100%;border-radius:12px;margin-top:14px;background:#000}
+h3{margin-top:0;margin-bottom:6px}
+small{color:#aaa}
+.progress-box{
+ width:100%;background:#10111b;border-radius:10px;
+ height:10px;margin-top:14px;overflow:hidden;display:none;
+}
+.progress-bar{height:100%;width:0%;background:#8064ff;transition:width 0.3s;}
+.clip-item{
+ background:#141521;padding:12px;border-radius:12px;
+ margin-top:14px;border:1px solid #2a2c40;
+}
+.badge{
+ display:inline-block;background:#2d274d;color:#b8a6ff;
+ padding:4px 8px;border-radius:6px;font-size:12px;margin-bottom:6px;
+}
+</style>
+</head>
+<body>
+
+<header>✂ Clip<span>AI</span></header>
+<div class="sub">AI Auto Video Clipper • Whisper Subtitles • 9:16 Reels</div>
+
+<div class="card">
+<h3>✨ Cloud AI Engine (Subtitles + Face Track)</h3>
+<p><small>Paste your Google Colab Gradio link below to launch full Whisper AI & Face Tracking inside ClipAI:</small></p>
+<input type="text" id="colabUrl" placeholder="https://xxxx.gradio.live">
+<button class="ai-btn" onclick="openCloudAI()">🚀 Launch AI Subtitles & Face Tracker</button>
+</div>
+
+<div class="card">
+<h3>⚡ Offline Quick Clipper (No Internet)</h3>
+<label for="file" class="upload-btn">📁 Choose Video From Phone</label>
+<input type="file" id="file" accept="video/*">
+<video id="preview" controls hidden playsinline></video>
+<p id="status"><small>No video selected</small></p>
+
+<label for="duration">Clip Duration</label>
+<select id="duration">
+<option value="15">15 seconds</option>
+<option value="30" selected>30 seconds</option>
+<option value="45">45 seconds</option>
+<option value="60">60 seconds</option>
+</select>
+
+<label for="format">Video Format</label>
+<select id="format">
+<option value="9:16" selected>9:16 Vertical (Shorts / Reels)</option>
+<option value="16:9">16:9 Landscape (Original)</option>
+</select>
+
+<button id="clipBtn" onclick="startClipping()">✂ Cut Offline Clips Now</button>
+
+<div class="progress-box" id="progressBox">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
+<p id="result"><small>Works 100% offline on your phone.</small></p>
+</div>
+
+<div class="card">
+<h3>📂 My Offline Clips</h3>
+<div id="clipsContainer">
+  <p><small>Your cut clips will appear here.</small></p>
+</div>
+</div>
+
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+const colabInput = document.getElementById("colabUrl");
+colabInput.value = localStorage.getItem("clipai_gradio") || "";
+colabInput.addEventListener("input", () => {
+  localStorage.setItem("clipai_gradio", colabInput.value.trim());
+});
+
+function openCloudAI() {
+  const url = colabInput.value.trim();
+  if (!url || !url.startsWith("http")) {
+    alert("Pehle apna Google Colab Gradio link (https://...gradio.live) paste karein!");
+    return;
+  }
+  window.location.href = url;
+}
+
+const fileInput = document.getElementById("file");
+const preview = document.getElementById("preview");
+const statusText = document.getElementById("status");
+const resultText = document.getElementById("result");
+const clipBtn = document.getElementById("clipBtn");
+const progressBox = document.getElementById("progressBox");
+const progressBar = document.getElementById("progressBar");
+const clipsContainer = document.getElementById("clipsContainer");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let videoFileURL = null;
+
+fileInput.addEventListener("change", () => {
+  const video = fileInput.files[0];
+  if (!video) return;
+  if (videoFileURL) URL.revokeObjectURL(videoFileURL);
+  videoFileURL = URL.createObjectURL(video);
+  preview.src = videoFileURL;
+  preview.hidden = false;
+  statusText.innerHTML = "<small>Loaded: " + video.name + "</small>";
+  resultText.innerHTML = "<small>Ready! Choose settings and tap Cut Offline Clips.</small>";
+});
+
+async function startClipping() {
+  if (!fileInput.files.length) {
+    alert("Please upload a video first!");
+    return;
+  }
+  const clipDuration = parseInt(document.getElementById("duration").value);
+  const format = document.getElementById("format").value;
+
+  const workVideo = document.createElement("video");
+  workVideo.src = videoFileURL;
+  workVideo.muted = false;
+  workVideo.playsInline = true;
+
+  await new Promise((resolve) => { workVideo.onloadedmetadata = resolve; });
+
+  const totalDuration = workVideo.duration;
+  let possibleClips = Math.floor(totalDuration / clipDuration);
+  if (possibleClips < 1) possibleClips = 1;
+  const numClips = Math.min(possibleClips, 3);
+
+  if (format === "9:16") {
+    canvas.width = 540; canvas.height = 960;
+  } else {
+    canvas.width = 960; canvas.height = 540;
+  }
+
+  clipBtn.disabled = true;
+  progressBox.style.display = "block";
+  progressBar.style.width = "0%";
+  clipsContainer.innerHTML = "";
+
+  for (let i = 0; i < numClips; i++) {
+    const startTime = i * clipDuration;
+    const actualDuration = Math.min(clipDuration, totalDuration - startTime);
+    if (actualDuration < 2) break;
+
+    resultText.innerHTML = `<small>Cutting Clip ${i + 1} of ${numClips} (${Math.round(actualDuration)}s)... Keep screen on.</small>`;
+    const blob = await recordSegment(workVideo, startTime, actualDuration, (pct) => {
+      progressBar.style.width = (((i + pct) / numClips) * 100) + "%";
+    });
+
+    const clipURL = URL.createObjectURL(blob);
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    const item = document.createElement("div");
+    item.className = "clip-item";
+    item.innerHTML = `
+      <span class="badge">Clip #${i + 1} • ${Math.round(actualDuration)}s • ${format}</span>
+      <video src="${clipURL}" controls playsinline></video>
+      <a href="${clipURL}" download="ClipAI_Clip_${i + 1}.${ext}" style="text-decoration:none">
+        <button class="download-btn">⬇ Download Clip #${i + 1}</button>
+      </a>
+    `;
+    clipsContainer.appendChild(item);
+  }
+
+  progressBar.style.width = "100%";
+  resultText.innerHTML = `<small>✅ Done! ${numClips} clip(s) generated.</small>`;
+  clipBtn.disabled = false;
+}
+
+function recordSegment(video, startTime, duration, onProgress) {
+  return new Promise((resolve) => {
+    video.currentTime = startTime;
+    video.onseeked = () => {
+      video.onseeked = null;
+      const canvasStream = canvas.captureStream(30);
+      let combinedStream = canvasStream;
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaElementSource(video);
+        const dest = audioCtx.createMediaStreamDestination();
+        source.connect(dest);
+        source.connect(audioCtx.destination);
+        const audioTracks = dest.stream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
+        }
+      } catch (e) {}
+
+      let mimeType = MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" : "video/webm";
+      const recorder = new MediaRecorder(combinedStream, { mimeType });
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+
+      video.play();
+      recorder.start();
+      let stopped = false;
+
+      function drawFrame() {
+        if (stopped) return;
+        const elapsed = video.currentTime - startTime;
+        onProgress(Math.min(elapsed / duration, 1));
+
+        const vw = video.videoWidth, vh = video.videoHeight;
+        const targetRatio = canvas.width / canvas.height;
+        const videoRatio = vw / vh;
+        let sx = 0, sy = 0, sw = vw, sh = vh;
+        if (videoRatio > targetRatio) {
+          sw = vh * targetRatio; sx = (vw - sw) / 2;
+        } else {
+          sh = vw / targetRatio; sy = (vh - sh) / 2;
+        }
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+        if (elapsed >= duration || video.ended) {
+          stopped = true; video.pause(); recorder.stop();
+        } else {
+          requestAnimationFrame(drawFrame);
+        }
+      }
+      drawFrame();
+    };
+  });
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+                        </html>
+                        
