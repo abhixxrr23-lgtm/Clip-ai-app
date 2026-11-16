@@ -1,0 +1,18 @@
+{
+  "name": "ClipAI - Auto Video Clipper",
+  "short_name": "ClipAI",
+  "start_url": "/Clip-ai-app/",
+  "scope": "/Clip-ai-app/",
+  "display": "standalone",
+  "background_color": "#10111b",
+  "theme_color": "#10111b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3172/3172555.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
